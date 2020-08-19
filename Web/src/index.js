@@ -37,6 +37,10 @@ import './styles.css';
         focus() {
             this.editor.focus();
         }
+
+        updateOptions(options) {
+            this.editor.updateOptions(options);
+        }
     }
 
     function main() {

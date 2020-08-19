@@ -61,6 +61,7 @@ final class MonacoEditorURLSchemeHandler: NSObject, WKURLSchemeHandler {
 
     var contentType: String
     switch resourceExtension {
+    case "html": contentType = "text/html"
     case "js": contentType = "application/json"
     default: contentType = "application/octet-stream"
     }

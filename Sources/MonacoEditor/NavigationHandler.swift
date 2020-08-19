@@ -22,6 +22,8 @@ import Foundation
 import WebKit
 
 final class NavigationHandler: NSObject, WKNavigationDelegate {
+  var ready: (() -> Void)?
+
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
     print(#function)
   }
@@ -32,6 +34,7 @@ final class NavigationHandler: NSObject, WKNavigationDelegate {
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     print(#function)
+    ready?()
   }
 
   func webView(
@@ -53,7 +56,7 @@ final class NavigationHandler: NSObject, WKNavigationDelegate {
     didFail navigation: WKNavigation!,
     withError error: Error
   ) {
-    print(#function)
+    print("\(#function): \(error)")
   }
 
   func webView(
@@ -61,7 +64,7 @@ final class NavigationHandler: NSObject, WKNavigationDelegate {
     didFailProvisionalNavigation navigation: WKNavigation!,
     withError error: Error
   ) {
-    print(#function)
+    print("\(#function): \(error)")
   }
 
   func webView(

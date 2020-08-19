@@ -20,23 +20,21 @@
 
 import SwiftUI
 
-public struct MonacoEditor: UIViewControllerRepresentable {
+public struct MonacoEditor: UIViewRepresentable {
   @ObservedObject private var configuration: MonacoEditorConfiguration
 
   public init(configuration: MonacoEditorConfiguration) {
     self.configuration = configuration
   }
 
-  public func makeUIViewController(context: Context) -> some UIViewController {
-    let viewController = MonacoEditorViewController()
-    viewController.loadViewIfNeeded()
-    return viewController
+  public func makeUIView(context: Context) -> MonacoEditorView {
+    let view = MonacoEditorView(frame: .zero, configuration: configuration)
+    return view
   }
 
-  public func updateUIViewController(
-    _ uiViewController: UIViewControllerType,
-    context: Context
-  ) {}
+  public func updateUIView(_ uiView: MonacoEditorView, context: Context) {
+    uiView.updateConfiguration(configuration)
+  }
 }
 
 struct SwiftUIView_Previews: PreviewProvider {
