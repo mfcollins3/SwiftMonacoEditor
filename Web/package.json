@@ -1,0 +1,37 @@
+{
+    "name": "swift-monaco-editor",
+    "version": "0.1.0",
+    "description": "UIKit and SwiftUI wrappers that host Monaco Editor in a WKWebView",
+    "keywords": [
+        "monaco",
+        "ios",
+        "editor",
+        "text"
+    ],
+    "homepage": "https://github.com/mfcollins3/SwiftMonacoEditor",
+    "bugs": {
+        "url": "https://github.com/mfcollins3/SwiftMonacoEditor/issues",
+        "email": "mfcollins3@me.com"
+    },
+    "license": "MIT",
+    "author": {
+        "name": "Michael F. Collins, III",
+        "email": "mfcollins3@me.com",
+        "url": "https://www.michaelfcollins3.me"
+    },
+    "repository": "github:mfcollins3/SwiftMonacoEditor",
+    "scripts": {},
+    "dependencies": {},
+    "devDependencies": {
+        "clean-webpack-plugin": "^3.0.0",
+        "css-loader": "^4.2.1",
+        "file-loader": "^6.0.0",
+        "html-webpack-plugin": "^4.3.0",
+        "monaco-editor": "^0.20.0",
+        "monaco-editor-webpack-plugin": "^1.9.0",
+        "style-loader": "^1.2.1",
+        "webpack": "^4.44.1",
+        "webpack-cli": "^3.3.12"
+    },
+    "private": true
+}

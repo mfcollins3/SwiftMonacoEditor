@@ -1,5 +1,3 @@
-// swift-tools-version:5.3
-
 // Copyright 2020 Michael F. Collins, III
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,40 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import PackageDescription
+import * as monaco from 'monaco-editor';
+import './styles.css';
 
-let package = Package(
-  name: "MonacoEditor",
-  defaultLocalization: LanguageTag("en"),
-  platforms: [
-    .iOS(.v13),
-    .macOS(.v10_15)
-  ],
-  products: [
-    .library(
-      name: "MonacoEditor",
-      targets: ["MonacoEditor"]
-    ),
-  ],
-  dependencies: [
-    .package(
-      name: "Gzip",
-      url: "https://github.com/1024jp/GzipSwift.git",
-      .upToNextMajor(from: "5.1.1")
-    )
-  ],
-  targets: [
-    .target(
-      name: "MonacoEditor",
-      dependencies: ["Gzip"],
-      resources: [
-        .copy("Editor")
-      ]
-    ),
-    .testTarget(
-      name: "MonacoEditorTests",
-      dependencies: ["MonacoEditor"]
-    ),
-  ],
-  swiftLanguageVersions: [.v5]
-)
+(function() {
+    class MonacoEditorHost {
+        constructor() {}
+
+        create(options) {
+            const hostElement = document.createElement('div');
+            hostElement.id = 'editor';
+            document.body.appendChild(hostElement);
+
+            this.editor = monaco.editor.create(hostElement, options);
+            this.editor.focus();
+        }
+
+        focus() {
+            this.editor.focus();
+        }
+    }
+
+    function main() {
+        window.editor = new MonacoEditorHost();
+    }
+
+    document.addEventListener('DOMContentLoaded', main);
+})();

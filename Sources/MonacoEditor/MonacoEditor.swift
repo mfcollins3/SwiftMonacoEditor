@@ -1,5 +1,3 @@
-// swift-tools-version:5.3
-
 // Copyright 2020 Michael F. Collins, III
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,40 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import PackageDescription
+import SwiftUI
 
-let package = Package(
-  name: "MonacoEditor",
-  defaultLocalization: LanguageTag("en"),
-  platforms: [
-    .iOS(.v13),
-    .macOS(.v10_15)
-  ],
-  products: [
-    .library(
-      name: "MonacoEditor",
-      targets: ["MonacoEditor"]
-    ),
-  ],
-  dependencies: [
-    .package(
-      name: "Gzip",
-      url: "https://github.com/1024jp/GzipSwift.git",
-      .upToNextMajor(from: "5.1.1")
-    )
-  ],
-  targets: [
-    .target(
-      name: "MonacoEditor",
-      dependencies: ["Gzip"],
-      resources: [
-        .copy("Editor")
-      ]
-    ),
-    .testTarget(
-      name: "MonacoEditorTests",
-      dependencies: ["MonacoEditor"]
-    ),
-  ],
-  swiftLanguageVersions: [.v5]
-)
+public struct MonacoEditor: UIViewControllerRepresentable {
+  @ObservedObject private var configuration: MonacoEditorConfiguration
+
+  public init(configuration: MonacoEditorConfiguration) {
+    self.configuration = configuration
+  }
+
+  public func makeUIViewController(context: Context) -> some UIViewController {
+    let viewController = MonacoEditorViewController()
+    viewController.loadViewIfNeeded()
+    return viewController
+  }
+
+  public func updateUIViewController(
+    _ uiViewController: UIViewControllerType,
+    context: Context
+  ) {}
+}
+
+struct SwiftUIView_Previews: PreviewProvider {
+  static var configuration = MonacoEditorConfiguration(language: "markdown")
+
+  static var previews: some View {
+    MonacoEditor(configuration: configuration)
+  }
+}

@@ -1,0 +1,2 @@
+Sources/MonacoEditor/Editor/app.js.map filter=lfs diff=lfs merge=lfs -text
+Sources/MonacoEditor/Editor/ts.worker.js.map filter=lfs diff=lfs merge=lfs -text
