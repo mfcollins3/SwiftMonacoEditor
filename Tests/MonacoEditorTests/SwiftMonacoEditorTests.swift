@@ -1,5 +1,5 @@
 import XCTest
-@testable import SwiftMonacoEditor
+@testable import MonacoEditor
 
 final class SwiftMonacoEditorTests: XCTestCase {
     func testExample() {
