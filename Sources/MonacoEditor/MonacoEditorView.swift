@@ -11,6 +11,8 @@ public final class MonacoEditorView: UIView {
   public let configuration: MonacoEditorConfiguration
   public let contentChanged: ((String) -> Void)?
 
+  private var commandList = [MonacoEditorCommand]()
+  private var commands = [String: () -> Void]()
   private var isLoaded = false
   private var navigationHandler: NavigationHandler!
   private var uiHandler: UIHandler!
@@ -55,6 +57,72 @@ public final class MonacoEditorView: UIView {
     fatalError("init(coder:) is not supported")
   }
 
+  public func addCommand(_ command: MonacoEditorCommand) {
+    guard isLoaded else {
+      commandList.append(command)
+      return
+    }
+
+    addCommand(
+      keyBinding: command.keyBinding,
+      context: command.context,
+      handler: command.command
+    )
+  }
+
+  private func addCommand(
+    keyBinding: MonacoEditorKeyBinding,
+    context: String? = nil,
+    handler: @escaping () -> Void
+  ) {
+    var modifier: String?
+    var keyCode: String
+    switch keyBinding {
+    case .key(let value):
+      modifier = nil
+      keyCode = value.rawValue
+
+    case .alt(let value):
+      modifier = "monaco.KeyMod.Alt | "
+      keyCode = value.rawValue
+
+    case .ctrlCmd(let value):
+      modifier = "monaco.KeyMod.CtrlCmd | "
+      keyCode = value.rawValue
+
+    case .shift(let value):
+      modifier = "monaco.KeyMod.Shift | "
+      keyCode = value.rawValue
+
+    case .winCtrl(let value):
+      modifier = "monaco.KeyMod.WinCtrl | "
+      keyCode = value.rawValue
+    }
+
+    var contextString: String?
+    if let context = context {
+      contextString = ",\n\t\t\(context)"
+    }
+
+    let commandID = UUID().uuidString
+    commands[commandID] = handler
+    let javascript =
+"""
+(function() {
+  editor.addCommand(function(monaco, editor) {
+    editor.addCommand(
+      \(modifier ?? "")monaco.KeyCode.\(keyCode),
+      function() {
+        window.webkit.messageHandlers.executeCommand.postMessage('\(commandID)');
+      }\(contextString ?? "")
+    );
+  });
+  return true;
+})();
+"""
+    evaluateJavascript(javascript)
+  }
+
   public func updateConfiguration() {
     guard isLoaded else {
       return
@@ -81,6 +149,11 @@ public final class MonacoEditorView: UIView {
 
 private extension MonacoEditorView {
   func createEditor() {
+    createMonacoEditor()
+    addCommands()
+  }
+
+  func createMonacoEditor() {
     let options = StandaloneEditorConstructionOptions(
       text: text,
       configuration: configuration
@@ -98,6 +171,18 @@ private extension MonacoEditorView {
 })();
 """
     evaluateJavascript(javascript)
+  }
+
+  func addCommands() {
+    for command in commandList {
+      self.addCommand(
+        keyBinding: command.keyBinding,
+        context: command.context,
+        handler: command.command
+      )
+    }
+
+    commandList.removeAll()
   }
 
   func loadEditor() {
@@ -127,6 +212,10 @@ private extension MonacoEditorView {
     configuration.userContentController.add(
       UpdateTextScriptHandler(self),
       name: "updateText"
+    )
+    configuration.userContentController.add(
+      ExecuteCommandScriptHandler(self),
+      name: "executeCommand"
     )
 
     let webView = WKWebView(frame: .zero, configuration: configuration)
@@ -187,6 +276,29 @@ private extension MonacoEditorView {
       }
 
       parent.contentChanged?(text)
+    }
+  }
+}
+
+private extension MonacoEditorView {
+  final class ExecuteCommandScriptHandler: NSObject, WKScriptMessageHandler {
+    private let parent: MonacoEditorView
+
+    init(_ parent: MonacoEditorView) {
+      self.parent = parent
+    }
+
+    func userContentController(
+      _ userContentController: WKUserContentController,
+      didReceive message: WKScriptMessage
+    ) {
+      guard let commandID = message.body as? String,
+            let command = parent.commands[commandID]
+      else {
+        fatalError("Unexpected message body")
+      }
+
+      command()
     }
   }
 }

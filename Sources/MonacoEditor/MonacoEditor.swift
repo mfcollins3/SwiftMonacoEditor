@@ -21,6 +21,7 @@
 import SwiftUI
 
 public struct MonacoEditor: UIViewRepresentable {
+  private let commands: [MonacoEditorCommand]?
   private let contentChanged: ((String) -> Void)?
 
   @ObservedObject private var configuration: MonacoEditorConfiguration
@@ -29,11 +30,13 @@ public struct MonacoEditor: UIViewRepresentable {
   public init(
     text: Binding<String>,
     configuration: MonacoEditorConfiguration,
+    commands: [MonacoEditorCommand]? = nil,
     contentChanged: ((String) -> Void)? = nil
   ) {
     self._text = text
     self.configuration = configuration
     self.contentChanged = contentChanged
+    self.commands = commands
   }
 
   public func makeUIView(context: Context) -> MonacoEditorView {
@@ -44,6 +47,13 @@ public struct MonacoEditor: UIViewRepresentable {
       contentChanged: contentChanged
     )
     view.text = text
+
+    if let commands = commands {
+      for command in commands {
+        view.addCommand(command)
+      }
+    }
+
     return view
   }
 

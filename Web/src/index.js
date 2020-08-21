@@ -38,6 +38,10 @@ import './styles.css';
             });
         }
 
+        addCommand(fn) {
+            fn(monaco, this.editor);
+        }
+
         focus() {
             this.editor.focus();
         }
