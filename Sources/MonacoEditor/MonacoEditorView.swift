@@ -8,15 +8,42 @@ import UIKit
 import WebKit
 
 public final class MonacoEditorView: UIView {
-  public var configuration: MonacoEditorConfiguration
+  public let configuration: MonacoEditorConfiguration
+  public let contentChanged: ((String) -> Void)?
 
   private var isLoaded = false
   private var navigationHandler: NavigationHandler!
   private var uiHandler: UIHandler!
   private weak var webView: WKWebView!
 
-  public init(frame: CGRect, configuration: MonacoEditorConfiguration) {
+  var text: String {
+    didSet {
+      guard isLoaded else {
+        return
+      }
+      
+      let encodedText = text.data(using: .utf8)?.base64EncodedString() ?? ""
+      let javascript =
+"""
+(function() {
+  let text = atob('\(encodedText)');
+  editor.setText(text);
+  return true
+})();
+"""
+      evaluateJavascript(javascript)
+    }
+  }
+
+  public init(
+    frame: CGRect,
+    text: String? = nil,
+    configuration: MonacoEditorConfiguration,
+    contentChanged: ((String) -> Void)? = nil
+  ) {
     self.configuration = configuration
+    self.contentChanged = contentChanged
+    self.text = text ?? ""
 
     super.init(frame: frame)
 
@@ -28,49 +55,49 @@ public final class MonacoEditorView: UIView {
     fatalError("init(coder:) is not supported")
   }
 
-  public func updateConfiguration(_ configuration: MonacoEditorConfiguration) {
-    self.configuration = configuration
+  public func updateConfiguration() {
     guard isLoaded else {
       return
     }
 
-    do {
-      let options = StandaloneEditorConstructionOptions(configuration)
-      let jsonData = try JSONEncoder().encode(options)
-      let json = String(data: jsonData, encoding: .utf8)!
-      let javascript =
+    let options = StandaloneEditorConstructionOptions(
+      configuration: configuration
+    )
+    let javascript =
 """
 (function() {
-  let options = JSON.parse('\(json)');
+  let options = \(options.javascript);
+  if (options.value) {
+    options.value = atob(options.value);
+  }
+
   editor.updateOptions(options);
   return true;
 })();
 """
-      evaluateJavascript(javascript)
-    } catch {
-      print("ERROR: \(error)")
-    }
+    evaluateJavascript(javascript)
   }
 }
 
 private extension MonacoEditorView {
   func createEditor() {
-    do {
-      let options = StandaloneEditorConstructionOptions(configuration)
-      let jsonData = try JSONEncoder().encode(options)
-      let json = String(data: jsonData, encoding: .utf8)!
-      let javascript =
+    let options = StandaloneEditorConstructionOptions(
+      text: text,
+      configuration: configuration
+    )
+    let javascript =
 """
 (function() {
-  let options = JSON.parse('\(json)');
+  let options = \(options.javascript);
+  if (options.value) {
+    options.value = atob(options.value);
+  }
+
   editor.create(options);
   return true;
 })();
 """
-      evaluateJavascript(javascript)
-    } catch {
-      print("ERROR: \(error)")
-    }
+    evaluateJavascript(javascript)
   }
 
   func loadEditor() {
@@ -96,6 +123,10 @@ private extension MonacoEditorView {
     configuration.setURLSchemeHandler(
       MonacoEditorURLSchemeHandler(),
       forURLScheme: "monacoeditor"
+    )
+    configuration.userContentController.add(
+      UpdateTextScriptHandler(self),
+      name: "updateText"
     )
 
     let webView = WKWebView(frame: .zero, configuration: configuration)
@@ -133,6 +164,29 @@ private extension MonacoEditorView {
 
         print("ERROR: \(error)")
       }
+    }
+  }
+}
+
+private extension MonacoEditorView {
+  final class UpdateTextScriptHandler: NSObject, WKScriptMessageHandler {
+    private let parent: MonacoEditorView
+
+    init(_ parent: MonacoEditorView) {
+      self.parent = parent
+    }
+
+    func userContentController(
+      _ userContentController: WKUserContentController,
+      didReceive message: WKScriptMessage
+    ) {
+      guard let encodedText = message.body as? String,
+            let data = Data(base64Encoded: encodedText),
+            let text = String(data: data, encoding: .utf8) else {
+        fatalError("Unexpected message body")
+      }
+
+      parent.contentChanged?(text)
     }
   }
 }

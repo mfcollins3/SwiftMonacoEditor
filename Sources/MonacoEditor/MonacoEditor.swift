@@ -21,26 +21,43 @@
 import SwiftUI
 
 public struct MonacoEditor: UIViewRepresentable {
-  @ObservedObject private var configuration: MonacoEditorConfiguration
+  private let contentChanged: ((String) -> Void)?
 
-  public init(configuration: MonacoEditorConfiguration) {
+  @ObservedObject private var configuration: MonacoEditorConfiguration
+  @Binding private var text: String
+
+  public init(
+    text: Binding<String>,
+    configuration: MonacoEditorConfiguration,
+    contentChanged: ((String) -> Void)? = nil
+  ) {
+    self._text = text
     self.configuration = configuration
+    self.contentChanged = contentChanged
   }
 
   public func makeUIView(context: Context) -> MonacoEditorView {
-    let view = MonacoEditorView(frame: .zero, configuration: configuration)
+    let view = MonacoEditorView(
+      frame: .zero,
+      text: text,
+      configuration: configuration,
+      contentChanged: contentChanged
+    )
+    view.text = text
     return view
   }
 
   public func updateUIView(_ uiView: MonacoEditorView, context: Context) {
-    uiView.updateConfiguration(configuration)
+    uiView.updateConfiguration()
+    uiView.text = text
   }
 }
 
 struct SwiftUIView_Previews: PreviewProvider {
   static var configuration = MonacoEditorConfiguration(language: "markdown")
+  @State static var text = ""
 
   static var previews: some View {
-    MonacoEditor(configuration: configuration)
+    MonacoEditor(text: $text, configuration: configuration)
   }
 }

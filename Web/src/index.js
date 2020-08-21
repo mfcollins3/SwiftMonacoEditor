@@ -32,10 +32,18 @@ import './styles.css';
 
             this.editor = monaco.editor.create(hostElement, options);
             this.editor.focus();
+            this.editor.onDidChangeModelContent((event) => {
+                var text = this.editor.getValue();
+                window.webkit.messageHandlers.updateText.postMessage(btoa(text));
+            });
         }
 
         focus() {
             this.editor.focus();
+        }
+
+        setText(text) {
+            this.editor.setValue(text);
         }
 
         updateOptions(options) {

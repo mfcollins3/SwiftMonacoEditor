@@ -21,9 +21,69 @@
 import SwiftUI
 
 public final class MonacoEditorConfiguration: ObservableObject {
-  @Published public var language: String?
+  public enum LineNumbersType: Equatable {
+    case on
+    case off
+    case relative
+    case interval
+    case function(String)
 
-  public init(language: String? = nil) {
+    var javascript: String {
+      switch self {
+      case .on: return "on"
+      case .off: return "off"
+      case .relative: return "relative"
+      case .interval: return "interval"
+      case .function(let javascript): return javascript
+      }
+    }
+  }
+
+  public enum WordWrap: String {
+    case off
+    case on
+    case wordWrapColumn
+    case bounded
+  }
+
+  public enum WrappingIndent: String {
+    case none
+    case same
+    case indent
+    case deepIndent
+  }
+
+  @Published public var language: String?
+  @Published public var lineNumbers: LineNumbersType?
+  @Published public var readOnly: Bool?
+  @Published public var roundedSelection: Bool?
+  @Published public var scrollBeyondLastLine: Bool?
+  @Published public var theme: String?
+  @Published public var wordWrap: WordWrap?
+  @Published public var wordWrapColumn: Int?
+  @Published public var wordWrapMinified: Bool?
+  @Published public var wrappingIndent: WrappingIndent?
+
+  public init(
+    language: String? = nil,
+    lineNumbers: LineNumbersType? = nil,
+    readOnly: Bool? = nil,
+    roundedSelection: Bool? = nil,
+    scrollBeyondLastLine: Bool? = nil,
+    theme: String? = nil,
+    wordWrap: WordWrap? = nil,
+    wordWrapColumn: Int? = nil,
+    wordWrapMinified: Bool? = nil,
+    wrappingIndent: WrappingIndent? = nil
+  ) {
     self.language = language
+    self.lineNumbers = lineNumbers
+    self.readOnly = readOnly
+    self.roundedSelection = roundedSelection
+    self.scrollBeyondLastLine = scrollBeyondLastLine
+    self.theme = theme
+    self.wordWrap = wordWrap
+    self.wordWrapColumn = wordWrapColumn
+    self.wordWrapMinified = wordWrapMinified
   }
 }
