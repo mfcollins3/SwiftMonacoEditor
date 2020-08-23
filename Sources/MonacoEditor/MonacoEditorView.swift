@@ -9,21 +9,16 @@ import WebKit
 
 public final class MonacoEditorView: UIView {
   public let configuration: MonacoEditorConfiguration
-  public let contentChanged: ((String) -> Void)?
 
-  private var commandList = [MonacoEditorCommand]()
-  private var commands = [String: () -> Void]()
-  private var isLoaded = false
-  private var navigationHandler: NavigationHandler!
-  private var uiHandler: UIHandler!
-  private weak var webView: WKWebView!
+  public var contentChanged: ((String) -> Void)?
+  public var ready: ((MonacoEditorView) -> Void)?
 
-  var text: String {
+  public var text: String {
     didSet {
       guard isLoaded else {
         return
       }
-      
+
       let encodedText = text.data(using: .utf8)?.base64EncodedString() ?? ""
       let javascript =
 """
@@ -37,14 +32,18 @@ public final class MonacoEditorView: UIView {
     }
   }
 
+  private var commands = [String: () -> Void]()
+  private var isLoaded = false
+  private var navigationHandler: NavigationHandler!
+  private var uiHandler: UIHandler!
+  private weak var webView: WKWebView!
+
   public init(
     frame: CGRect,
     text: String? = nil,
-    configuration: MonacoEditorConfiguration,
-    contentChanged: ((String) -> Void)? = nil
+    configuration: MonacoEditorConfiguration
   ) {
     self.configuration = configuration
-    self.contentChanged = contentChanged
     self.text = text ?? ""
 
     super.init(frame: frame)
@@ -57,70 +56,21 @@ public final class MonacoEditorView: UIView {
     fatalError("init(coder:) is not supported")
   }
 
-  public func addCommand(_ command: MonacoEditorCommand) {
-    guard isLoaded else {
-      commandList.append(command)
-      return
-    }
 
-    addCommand(
-      keyBinding: command.keyBinding,
-      context: command.context,
-      handler: command.command
-    )
-  }
-
-  private func addCommand(
-    keyBinding: MonacoEditorKeyBinding,
-    context: String? = nil,
-    handler: @escaping () -> Void
-  ) {
-    var modifier: String?
-    var keyCode: String
-    switch keyBinding {
-    case .key(let value):
-      modifier = nil
-      keyCode = value.rawValue
-
-    case .alt(let value):
-      modifier = "monaco.KeyMod.Alt | "
-      keyCode = value.rawValue
-
-    case .ctrlCmd(let value):
-      modifier = "monaco.KeyMod.CtrlCmd | "
-      keyCode = value.rawValue
-
-    case .shift(let value):
-      modifier = "monaco.KeyMod.Shift | "
-      keyCode = value.rawValue
-
-    case .winCtrl(let value):
-      modifier = "monaco.KeyMod.WinCtrl | "
-      keyCode = value.rawValue
-    }
-
-    var contextString: String?
-    if let context = context {
-      contextString = ",\n\t\t\(context)"
-    }
-
-    let commandID = UUID().uuidString
-    commands[commandID] = handler
+  public func createContextKey<T: MonacoEditorContextKeyValue>(
+    _ key: String,
+    defaultValue: T
+  ) -> MonacoEditorContextKey<T> {
     let javascript =
 """
 (function() {
-  editor.addCommand(function(monaco, editor) {
-    editor.addCommand(
-      \(modifier ?? "")monaco.KeyCode.\(keyCode),
-      function() {
-        window.webkit.messageHandlers.executeCommand.postMessage('\(commandID)');
-      }\(contextString ?? "")
-    );
-  });
+  editor.createContextKey('\(key)', \(defaultValue.javascript));
   return true;
 })();
 """
     evaluateJavascript(javascript)
+
+    return MonacoEditorContextKey(webView: webView, key: key)
   }
 
   public func updateConfiguration() {
@@ -147,13 +97,70 @@ public final class MonacoEditorView: UIView {
   }
 }
 
-private extension MonacoEditorView {
-  func createEditor() {
-    createMonacoEditor()
-    addCommands()
+// MARK: - Commands -
+
+extension MonacoEditorView {
+  public func addCommand(_ command: MonacoEditorCommand) {
+    var keybindingString: String
+    switch command.keyBinding {
+    case .chord(let firstKeyBinding, let secondKeyBinding):
+      let first = makeKeyBinding(firstKeyBinding)
+      let second = makeKeyBinding(secondKeyBinding)
+      keybindingString = "monaco.KeyMod.chord(\(first), \(second))"
+
+    default:
+      keybindingString = makeKeyBinding(command.keyBinding)
+    }
+
+    var contextString: String?
+    if let context = command.context {
+      contextString = ",\n\t\t\(context)"
+    }
+
+    let commandID = UUID().uuidString
+    commands[commandID] = command.command
+    let javascript =
+"""
+(function() {
+  editor.addCommand(function(monaco, editor) {
+    editor.addCommand(
+      \(keybindingString),
+      function() {
+        window.webkit.messageHandlers.executeCommand.postMessage('\(commandID)');
+      }\(contextString ?? "")
+    );
+  });
+  return true;
+})();
+"""
+    evaluateJavascript(javascript)
   }
 
-  func createMonacoEditor() {
+  private func makeKeyBinding(_ keyBinding: MonacoEditorKeyBinding) -> String {
+    switch keyBinding {
+    case .key(let value):
+      return "monaco.KeyCode.\(value.rawValue)"
+
+    case .alt(let value):
+      return "monaco.KeyMod.Alt | monaco.KeyCode.\(value.rawValue)"
+
+    case .ctrlCmd(let value):
+      return "monaco.KeyMod.CtrlCmd | monaco.KeyCode.\(value.rawValue)"
+
+    case .shift(let value):
+      return "monaco.KeyMod.Shift | monaco.KeyCode.\(value.rawValue)"
+
+    case .winCtrl(let value):
+      return "monaco.KeyMod.WinCtrl | monaco.KeyCode.\(value.rawValue)"
+
+    default:
+      fatalError("chord is not supported")
+    }
+  }
+}
+
+private extension MonacoEditorView {
+  func createEditor() {
     let options = StandaloneEditorConstructionOptions(
       text: text,
       configuration: configuration
@@ -170,19 +177,24 @@ private extension MonacoEditorView {
   return true;
 })();
 """
-    evaluateJavascript(javascript)
-  }
+    if #available(iOS 14.0, *) {
+      webView.evaluateJavaScript(javascript, in: nil, in: WKContentWorld.page) {
+        result in
+        switch result {
+        case .success(_): self.ready?(self)
+        case .failure(let error): print("ERROR: \(error)")
+        }
+      }
+    } else {
+      webView.evaluateJavaScript(javascript) { (result, error) in
+        if let error = error {
+          print("ERROR: \(error)")
+          return
+        }
 
-  func addCommands() {
-    for command in commandList {
-      self.addCommand(
-        keyBinding: command.keyBinding,
-        context: command.context,
-        handler: command.command
-      )
+        self.ready?(self)
+      }
     }
-
-    commandList.removeAll()
   }
 
   func loadEditor() {

@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+import Combine
 import SwiftUI
 
 public struct MonacoEditor: UIViewRepresentable {
@@ -39,27 +40,44 @@ public struct MonacoEditor: UIViewRepresentable {
     self.commands = commands
   }
 
+  public func makeCoordinator() -> Coordinator {
+    let coordinator = Coordinator(commands: commands)
+    return coordinator
+  }
+
   public func makeUIView(context: Context) -> MonacoEditorView {
     let view = MonacoEditorView(
       frame: .zero,
       text: text,
-      configuration: configuration,
-      contentChanged: contentChanged
+      configuration: configuration
     )
+    view.ready = context.coordinator.configureEditor
+    view.contentChanged = contentChanged
     view.text = text
-
-    if let commands = commands {
-      for command in commands {
-        view.addCommand(command)
-      }
-    }
-
     return view
   }
 
   public func updateUIView(_ uiView: MonacoEditorView, context: Context) {
     uiView.updateConfiguration()
     uiView.text = text
+  }
+}
+
+extension MonacoEditor {
+  public final class Coordinator {
+    private let commands: [MonacoEditorCommand]?
+
+    init(commands: [MonacoEditorCommand]?) {
+      self.commands = commands
+    }
+
+    func configureEditor(editor: MonacoEditorView) {
+      if let commands = self.commands {
+        for command in commands {
+          editor.addCommand(command)
+        }
+      }
+    }
   }
 }
 

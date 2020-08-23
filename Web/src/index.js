@@ -23,7 +23,9 @@ import './styles.css';
 
 (function() {
     class MonacoEditorHost {
-        constructor() {}
+        constructor() {
+            this.contextKeys = {};
+        }
 
         create(options) {
             const hostElement = document.createElement('div');
@@ -42,8 +44,25 @@ import './styles.css';
             fn(monaco, this.editor);
         }
 
+        createContextKey(key, defaultValue) {
+            const contextKey = this.editor.createContextKey(key, defaultValue);
+            this.contextKeys[key] = contextKey;
+        }
+
         focus() {
             this.editor.focus();
+        }
+
+        getContextKey(key) {
+            return this.contextKeys[key].get();
+        }
+
+        resetContextKey(key) {
+            this.contextKeys[key].reset();
+        }
+
+        setContextKey(key, value) {
+            this.contextKeys[key].set(value);
         }
 
         setText(text) {
