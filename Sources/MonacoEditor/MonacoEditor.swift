@@ -22,8 +22,10 @@ import Combine
 import SwiftUI
 
 public struct MonacoEditor: UIViewRepresentable {
+  private let actions: [MonacoEditorAction]?
   private let commands: [MonacoEditorCommand]?
   private let contentChanged: ((String) -> Void)?
+  private let scriptMessageHandlers: [MonacoEditorScriptMessageHandler]?
 
   @ObservedObject private var configuration: MonacoEditorConfiguration
   @Binding private var text: String
@@ -32,16 +34,20 @@ public struct MonacoEditor: UIViewRepresentable {
     text: Binding<String>,
     configuration: MonacoEditorConfiguration,
     commands: [MonacoEditorCommand]? = nil,
+    actions: [MonacoEditorAction]? = nil,
+    scriptMessageHandlers: [MonacoEditorScriptMessageHandler]? = nil,
     contentChanged: ((String) -> Void)? = nil
   ) {
     self._text = text
     self.configuration = configuration
     self.contentChanged = contentChanged
     self.commands = commands
+    self.actions = actions
+    self.scriptMessageHandlers = scriptMessageHandlers
   }
 
   public func makeCoordinator() -> Coordinator {
-    let coordinator = Coordinator(commands: commands)
+    let coordinator = Coordinator(commands: commands, actions: actions)
     return coordinator
   }
 
@@ -49,7 +55,8 @@ public struct MonacoEditor: UIViewRepresentable {
     let view = MonacoEditorView(
       frame: .zero,
       text: text,
-      configuration: configuration
+      configuration: configuration,
+      scriptMessageHandlers: scriptMessageHandlers
     )
     view.ready = context.coordinator.configureEditor
     view.contentChanged = contentChanged
@@ -65,16 +72,24 @@ public struct MonacoEditor: UIViewRepresentable {
 
 extension MonacoEditor {
   public final class Coordinator {
+    private let actions: [MonacoEditorAction]?
     private let commands: [MonacoEditorCommand]?
 
-    init(commands: [MonacoEditorCommand]?) {
+    init(commands: [MonacoEditorCommand]?, actions: [MonacoEditorAction]?) {
       self.commands = commands
+      self.actions = actions
     }
 
     func configureEditor(editor: MonacoEditorView) {
       if let commands = self.commands {
         for command in commands {
           editor.addCommand(command)
+        }
+      }
+
+      if let actions = self.actions {
+        for action in actions {
+          editor.addAction(action)
         }
       }
     }

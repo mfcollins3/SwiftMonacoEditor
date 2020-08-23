@@ -32,7 +32,6 @@ public final class MonacoEditorView: UIView {
     }
   }
 
-  private var commands = [String: () -> Void]()
   private var isLoaded = false
   private var navigationHandler: NavigationHandler!
   private var uiHandler: UIHandler!
@@ -41,14 +40,15 @@ public final class MonacoEditorView: UIView {
   public init(
     frame: CGRect,
     text: String? = nil,
-    configuration: MonacoEditorConfiguration
+    configuration: MonacoEditorConfiguration,
+    scriptMessageHandlers: [MonacoEditorScriptMessageHandler]?
   ) {
     self.configuration = configuration
     self.text = text ?? ""
 
     super.init(frame: frame)
 
-    setupWebView()
+    setupWebView(scriptMessageHandlers: scriptMessageHandlers)
     loadEditor()
   }
 
@@ -56,6 +56,49 @@ public final class MonacoEditorView: UIView {
     fatalError("init(coder:) is not supported")
   }
 
+  public func addAction(_ action: MonacoEditorAction) {
+    var builder = JavaScriptObjectBuilder()
+    builder.append(key: "contextMenuGroupId", value: action.contextMenuGroupID)
+    builder.append(key: "contextMenuOrder", value: action.contextMenuOrder)
+    builder.append(key: "id", value: action.id)
+    builder.append(key: "keybindingContext", value: action.keybindingContext)
+    builder.append(key: "keybindings", value: action.keybindings)
+    builder.append(key: "label", value: action.label)
+    builder.append(key: "precondition", value: action.precondition);
+    builder.append(key: "run", javascript: action.run)
+    let actionDescriptor = builder.build()
+
+    let javascript =
+"""
+(function() {
+  editor.addAction(function(monaco, editor) {
+    editor.addAction(\(actionDescriptor));
+  });
+  return true;
+})();
+"""
+    evaluateJavascript(javascript)
+  }
+
+  public func addCommand(_ command: MonacoEditorCommand) {
+    let keybindingString = command.keyBinding.keybinding
+
+    var contextString: String?
+    if let context = command.context {
+      contextString = ",\n\t\t\(context)"
+    }
+
+    let javascript =
+"""
+(function() {
+  editor.addCommand(function(monaco, editor) {
+    editor.addCommand(\(keybindingString),\(command.command)\(contextString ?? ""));
+  });
+  return true;
+})();
+"""
+    evaluateJavascript(javascript)
+  }
 
   public func createContextKey<T: MonacoEditorContextKeyValue>(
     _ key: String,
@@ -94,68 +137,6 @@ public final class MonacoEditorView: UIView {
 })();
 """
     evaluateJavascript(javascript)
-  }
-}
-
-// MARK: - Commands -
-
-extension MonacoEditorView {
-  public func addCommand(_ command: MonacoEditorCommand) {
-    var keybindingString: String
-    switch command.keyBinding {
-    case .chord(let firstKeyBinding, let secondKeyBinding):
-      let first = makeKeyBinding(firstKeyBinding)
-      let second = makeKeyBinding(secondKeyBinding)
-      keybindingString = "monaco.KeyMod.chord(\(first), \(second))"
-
-    default:
-      keybindingString = makeKeyBinding(command.keyBinding)
-    }
-
-    var contextString: String?
-    if let context = command.context {
-      contextString = ",\n\t\t\(context)"
-    }
-
-    let commandID = UUID().uuidString
-    commands[commandID] = command.command
-    let javascript =
-"""
-(function() {
-  editor.addCommand(function(monaco, editor) {
-    editor.addCommand(
-      \(keybindingString),
-      function() {
-        window.webkit.messageHandlers.executeCommand.postMessage('\(commandID)');
-      }\(contextString ?? "")
-    );
-  });
-  return true;
-})();
-"""
-    evaluateJavascript(javascript)
-  }
-
-  private func makeKeyBinding(_ keyBinding: MonacoEditorKeyBinding) -> String {
-    switch keyBinding {
-    case .key(let value):
-      return "monaco.KeyCode.\(value.rawValue)"
-
-    case .alt(let value):
-      return "monaco.KeyMod.Alt | monaco.KeyCode.\(value.rawValue)"
-
-    case .ctrlCmd(let value):
-      return "monaco.KeyMod.CtrlCmd | monaco.KeyCode.\(value.rawValue)"
-
-    case .shift(let value):
-      return "monaco.KeyMod.Shift | monaco.KeyCode.\(value.rawValue)"
-
-    case .winCtrl(let value):
-      return "monaco.KeyMod.WinCtrl | monaco.KeyCode.\(value.rawValue)"
-
-    default:
-      fatalError("chord is not supported")
-    }
   }
 }
 
@@ -207,7 +188,9 @@ private extension MonacoEditorView {
     webView.load(request)
   }
 
-  func setupWebView() {
+  func setupWebView(
+    scriptMessageHandlers: [MonacoEditorScriptMessageHandler]?
+  ) {
     navigationHandler = NavigationHandler()
     navigationHandler.ready = {
       self.isLoaded = true
@@ -225,10 +208,28 @@ private extension MonacoEditorView {
       UpdateTextScriptHandler(self),
       name: "updateText"
     )
-    configuration.userContentController.add(
-      ExecuteCommandScriptHandler(self),
-      name: "executeCommand"
-    )
+
+    if let scriptMessageHandlers = scriptMessageHandlers {
+      for scriptMessageHandler in scriptMessageHandlers {
+        if let handler = scriptMessageHandler.scriptMessageHandler {
+          configuration.userContentController.add(
+            handler,
+            name: scriptMessageHandler.name
+          )
+          continue
+        }
+
+        if #available(iOS 14.0, *) {
+          if let handler = scriptMessageHandler.scriptMessageHandlerWithReply {
+            configuration.userContentController.addScriptMessageHandler(
+              handler,
+              contentWorld: WKContentWorld.page,
+              name: scriptMessageHandler.name
+            )
+          }
+        }
+      }
+    }
 
     let webView = WKWebView(frame: .zero, configuration: configuration)
     webView.navigationDelegate = navigationHandler
@@ -288,29 +289,6 @@ private extension MonacoEditorView {
       }
 
       parent.contentChanged?(text)
-    }
-  }
-}
-
-private extension MonacoEditorView {
-  final class ExecuteCommandScriptHandler: NSObject, WKScriptMessageHandler {
-    private let parent: MonacoEditorView
-
-    init(_ parent: MonacoEditorView) {
-      self.parent = parent
-    }
-
-    func userContentController(
-      _ userContentController: WKUserContentController,
-      didReceive message: WKScriptMessage
-    ) {
-      guard let commandID = message.body as? String,
-            let command = parent.commands[commandID]
-      else {
-        fatalError("Unexpected message body")
-      }
-
-      command()
     }
   }
 }

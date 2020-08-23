@@ -6,13 +6,13 @@
 
 public struct MonacoEditorCommand {
   public let keyBinding: MonacoEditorKeyBinding
-  public let command: () -> Void
+  public let command: String
   public let context: String?
 
   public init(
     keyBinding: MonacoEditorKeyBinding,
     context: String? = nil,
-    command: @escaping () -> Void
+    command: String
   ) {
     self.keyBinding = keyBinding
     self.command = command

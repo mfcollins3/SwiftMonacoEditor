@@ -11,4 +11,26 @@ public indirect enum MonacoEditorKeyBinding {
   case shift(MonacoEditorKeyCode)
   case winCtrl(MonacoEditorKeyCode)
   case chord(MonacoEditorKeyBinding, MonacoEditorKeyBinding)
+
+  var keybinding: String {
+    switch self {
+    case .key(let value):
+      return "monaco.KeyCode.\(value.rawValue)"
+
+    case .alt(let value):
+      return "monaco.KeyMod.Alt | monaco.KeyCode.\(value.rawValue)"
+
+    case .ctrlCmd(let value):
+      return "monaco.KeyMod.CtrlCmd | monaco.KeyCode.\(value.rawValue)"
+
+    case .shift(let value):
+      return "monaco.KeyMod.Shift | monaco.KeyCode.\(value.rawValue)"
+
+    case .winCtrl(let value):
+      return "monaco.KeyMod.WinCtrl | monaco.KeyCode.\(value.rawValue)"
+
+    case .chord(let first, let second):
+      return "monaco.KeyMod.chord(\(first.keybinding), \(second.keybinding))"
+    }
+  }
 }

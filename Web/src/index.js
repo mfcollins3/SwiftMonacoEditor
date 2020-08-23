@@ -40,6 +40,10 @@ import './styles.css';
             });
         }
 
+        addAction(fn) {
+            fn(monaco, this.editor);
+        }
+        
         addCommand(fn) {
             fn(monaco, this.editor);
         }
